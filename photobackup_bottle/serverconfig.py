@@ -28,6 +28,9 @@ import getpass
 import hashlib
 import os, errno        # for creating the directory
 import sys
+
+from collections import OrderedDict
+
 try:
     import pwd          # permission checks on *nix systems
 except ImportError:
@@ -176,6 +179,14 @@ def read_config(section=None):
         if key not in values:
             print('The requered setting {} is not in the config file; exiting.'.format(key))
             sys.exit(1)
+
+    values = OrderedDict(values)
+    values['users'] = OrderedDict()
+    user_dict = OrderedDict(pass_hash=None, pass_bcrypt=None)
+
+    values['users']['DEFAULT_USER'] = user_dict.copy()
+    values['users']['DEFAULT_USER']['pass_hash'] = values['Password']
+    values['users']['DEFAULT_USER']['pass_bcrypt'] = values['PasswordBcrypt']
 
     return values
 

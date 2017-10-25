@@ -56,15 +56,42 @@ def validate_password(func):
     """ Validates the password given in the request against the stored Bcrypted one. """
     @wraps(func)
     def wrapper(*args, **kwargs):
-        password = None
+
         try:
-            password = request.forms.get('password').encode('utf-8')
+            req_password = request.forms.get('password').encode('utf-8')
         except AttributeError:
             end(403, 'No password in request')
-        
-        passcrypt = config['PasswordBcrypt'].encode('utf-8')
-        if not bcrypt.checkpw(password, passcrypt):
+
+        req_account = request.forms.get('username')
+
+        account = None
+        config_bcrypted_pass = None
+
+        if req_account:     # the request had username field
+            if req_account not in config['users']:
+                log.warn('Attempt to connect with non-existent account "{}"'.format(req_password))
+                end(403, 'Wrong username or password')  # generic error, to prevent DHA
+            account = req_account
+            config_bcrypted_pass = config['users'][req_account]['pass_bcrypt']
+        else:   # no username field in the request - legacy, try to match the provided pass to an account
+            for username, user_dict in config['users'].items():
+                if bcrypt.checkpw(req_password, user_dict['pass_bcrypt'].encode('utf-8')):
+                    account = username
+                    config_bcrypted_pass = user_dict['pass_bcrypt']
+                    log.debug('Legacy - matched the username "{}" by the provided password.'.format(account))
+                    break
+
+        # the request's password was not matched to any existing account
+        if not config_bcrypted_pass:
+            log.warn('Attempt to connect w/o username, and wrong password'.format(req_password))
+            end(403, 'Wrong username or password')  # generic error, to prevent DHA
+
+        config_bcrypted_pass = config_bcrypted_pass.encode('utf-8')
+        if not bcrypt.checkpw(req_password, config_bcrypted_pass):
             end(403, 'wrong password!')
+
+        # put the username in the request object - to be available downstream
+        request.forms['username'] = account.encode('utf-8')
 
         return func(*args, **kwargs)
 
@@ -183,9 +210,14 @@ def main():
 
     if arguments['run']:
         app = bottle.default_app()
-        if 'HTTPPrefix' in config:
-            app.mount(config['HTTPPrefix'], app)
+        server_http_prefix = config.get('HTTPPrefix', '')
+        if server_http_prefix:
+            app.mount(server_http_prefix, app)
+        log.info('Starting the PhotoBackup server on {0}:{1}{2}'
+                 .format(config['BindAddress'], config['Port'], server_http_prefix))
+        log.info('Root file directory: {}'.format(config['MediaRoot']))
         app.run(port=config['Port'], host=config['BindAddress'])
+
     elif arguments['list']:
         print_list()
 

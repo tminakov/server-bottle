@@ -86,7 +86,9 @@ class TestClass:
         assert r.status_code == 400
 
     def test_sendfile200(self):
-        """ Test the status when posting with all the right parameters. """
+        """ Test the status when posting with all the right parameters.
+            The username is missing - auto-matched by the server.
+        """
         payload = {
             'password': config['Password'],
             'filesize': os.stat(upfile).st_size
@@ -95,11 +97,45 @@ class TestClass:
                           files={'upfile': open(upfile, 'rb')})
         assert r.status_code == 200
 
+    def test_send_file_valid_user_pass(self):
+        """ Test the status when posting with valid username and password. """
+        payload = {
+            'password': config['Password'],
+            'username': 'DEFAULT_USER',
+            'filesize': os.stat(upfile).st_size,
+        }
+        r = requests.post(url, data=payload,
+                          files={'upfile': open(upfile, 'rb')})
+        assert r.status_code == 200
+
+    def test_send_file_invalid_user_pass(self):
+        """ Test the status when posting with invalid username and some valid password. """
+        payload = {
+            'password': config['Password'],
+            'username': 'nosuch_user',
+            'filesize': os.stat(upfile).st_size,
+        }
+        r = requests.post(url, data=payload,
+                          files={'upfile': open(upfile, 'rb')})
+        assert r.status_code == 403
+
+    def test_send_file_invalid_user_invalid_pass(self):
+        """ Test the status when posting with valid username and invalid password. """
+        payload = {
+            'password': 'blablahpass',
+            'username': 'DEFAULT_USER',
+            'filesize': os.stat(upfile).st_size,
+        }
+        r = requests.post(url, data=payload,
+                          files={'upfile': open(upfile, 'rb')})
+        assert r.status_code == 403
+
     def test_resendfile409(self):
         """ Test the status when reposting with all the right parameters. """
         payload = {
             'password': config['Password'],
-            'filesize': os.stat(upfile).st_size
+            'filesize': os.stat(upfile).st_size,
+            'filesize': os.stat(upfile).st_size,
         }
         r = requests.post(url, data=payload,
                           files={'upfile': open(upfile, 'rb')})
